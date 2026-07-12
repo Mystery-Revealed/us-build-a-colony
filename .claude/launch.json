@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "us-build-a-colony",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/src/index.js"],
+      "port": 4000
+    }
+  ]
+}
