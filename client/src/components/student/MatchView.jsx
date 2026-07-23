@@ -5,7 +5,7 @@
 // `crisis` id (e.g. 'starving_time'): a dramatic, crimson-trimmed, UNGRADED
 // interstitial the client plays instead of the plain feedback card.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { emitAck, errorText } from '../../services/socket.js';
 import { Art } from '../../services/assets.jsx';
 import MetersBar from '../shared/MetersBar.jsx';
@@ -110,13 +110,30 @@ function EventCard({ eventCard, meta, onContinue }) {
 
 function DecisionPanel({ turn }) {
   const [busy, setBusy] = useState(false);
+  // Synchronous double-click lock. State alone can't stop two clicks landing
+  // in the same render frame (both read the stale `busy === false`), and the
+  // server acks before pushing turn:resolution — so the second submit would be
+  // graded against the NEXT decision (server cursor already advanced). The ref
+  // engages immediately; `busy` still drives the disabled styling.
+  const busyRef = useRef(false);
   const [err, setErr] = useState('');
 
+  // A new decision arriving always releases the lock — covers a post-reconnect
+  // sync replacing the turn in place without remounting this panel.
+  useEffect(() => {
+    busyRef.current = false;
+    setBusy(false);
+  }, [turn.stepIndex]);
+
   async function choose(choiceIndex) {
-    if (busy) return;
+    if (busyRef.current) return;
+    busyRef.current = true;
     setBusy(true);
     const res = await emitAck('student:submit_move', { move: { kind: 'decision', choiceIndex } });
-    if (!res.ok) { setErr(errorText(res.error)); setBusy(false); }
+    // Deliberately NOT unlocked on success: the ack arrives BEFORE the
+    // turn:resolution push. The panel unmounts when feedback arrives, or the
+    // stepIndex effect above releases the lock.
+    if (!res.ok) { setErr(errorText(res.error)); busyRef.current = false; setBusy(false); }
   }
 
   return (
