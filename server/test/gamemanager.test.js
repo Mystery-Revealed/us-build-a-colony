@@ -211,3 +211,18 @@ test('students cannot reach teacher data: report requires the PIN', () => {
   assert.equal(manager.sessionReport({ joinCode, pin: '1111' }).error, 'bad_pin');
   assert.ok(manager.sessionReport({ joinCode, pin: PIN }).report);
 });
+
+// REGRESSION: the nickname filter used to substring-match mild words, so
+// "Michelle" and "Shelly" tripped 'hell' and "Dickinson" tripped 'dick' — real
+// students were told "Please pick a different name" and could not join at all.
+test('ordinary student names are not rejected as profanity', () => {
+  const manager = new GameManager();
+  const joinCode = makeSession(manager);
+  for (const name of ['Michelle', 'Shelly', 'Dickinson', 'Cassandra', 'Hellen', 'Damian']) {
+    join(manager, joinCode, name); // join() asserts the server accepted it
+  }
+  // ...while the words the filter exists for are still refused.
+  for (const bad of ['shit', 'Dick', 'hell']) {
+    assert.throws(() => join(manager, joinCode, bad), /nickname_blocked/, `"${bad}" must still be blocked`);
+  }
+});
